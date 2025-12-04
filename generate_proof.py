@@ -1,75 +1,101 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Generate proof of work (commit hash + RSA signature)
+Generate commit proof:
+1) Get latest commit hash
+2) Sign it with student private key using RSA-PSS-SHA256
+3) Encrypt signature with instructor public key using RSA/OAEP-SHA256
+4) Base64-encode encrypted signature
 """
 
 import subprocess
 import base64
+import json
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
 
-def get_latest_commit_hash():
-    """Get latest commit hash from git."""
+def get_latest_commit_hash() -> str:
     result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "log", "-1", "--format=%H"],
         capture_output=True,
-        text=True
+        text=True,
+        check=True,
     )
     return result.stdout.strip()
 
 
-def sign_commit_hash(commit_hash: str, private_key_path: str) -> str:
-    """Sign commit hash with RSA private key."""
-    # Load private key
-    with open(private_key_path, "rb") as f:
-        private_key = serialization.load_pem_private_key(
+def load_private_key(path: str):
+    with open(path, "rb") as f:
+        return serialization.load_pem_private_key(
             f.read(),
             password=None,
-            backend=default_backend()
+            backend=default_backend(),
         )
-    
-    # Sign the commit hash with RSA-PSS and SHA-256
-    signature = private_key.sign(
-        commit_hash.encode(),
+
+
+def load_public_key(path: str):
+    with open(path, "rb") as f:
+        return serialization.load_pem_public_key(
+            f.read(),
+            backend=default_backend(),
+        )
+
+
+def sign_message(message: str, private_key) -> bytes:
+    """
+    Sign ASCII commit hash with RSA-PSS-SHA256.
+    """
+    return private_key.sign(
+        message.encode("utf-8"),
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
-            salt_length=padding.PSS.MAX_LENGTH
+            salt_length=padding.PSS.MAX_LENGTH,
         ),
-        hashes.SHA256()
+        hashes.SHA256(),
     )
-    
-    # Return base64-encoded signature
-    return base64.b64encode(signature).decode()
+
+
+def encrypt_with_public_key(data: bytes, public_key) -> bytes:
+    """
+    Encrypt data using RSA/OAEP with SHA-256.
+    """
+    return public_key.encrypt(
+        data,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
 
 
 def main():
-    print("Generating proof of work...")
-    
-    # Get commit hash
+    print("Generating encrypted commit proof...")
+
     commit_hash = get_latest_commit_hash()
-    print(f"? Commit hash: {commit_hash}")
-    
-    # Sign it
-    signature = sign_commit_hash(commit_hash, "student_private.pem")
-    print(f"? Signature generated (length: {len(signature)})")
-    
-    # Save proof
-    import json
+    print(f"Commit hash: {commit_hash}")
+
+    student_priv = load_private_key("student_private.pem")
+    instructor_pub = load_public_key("instructor_public.pem")
+
+    signature = sign_message(commit_hash, student_priv)
+    encrypted_sig = encrypt_with_public_key(signature, instructor_pub)
+    encrypted_sig_b64 = base64.b64encode(encrypted_sig).decode("utf-8")
+
     proof = {
         "commit_hash": commit_hash,
-        "signature": signature
+        "encrypted_signature": encrypted_sig_b64,
     }
-    
+
     with open("proof.json", "w") as f:
         json.dump(proof, f, indent=2)
-    
-    print("\n? Proof saved to proof.json")
-    print(f"\nSubmission Information:")
-    print(f"GitHub URL: https://github.com/nnssprasad97/pki-2fa-microservice")
+
+    print("\n✓ Proof saved to proof.json")
+    print("\nSubmission values:")
     print(f"Commit Hash: {commit_hash}")
-    print(f"Signature: {signature[:80]}...")
+    print(f"Encrypted Signature (single line):\n{encrypted_sig_b64}")
 
 
 if __name__ == "__main__":
