@@ -1,0 +1,13 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    container_name: pki-2fa-microservice
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./seed.txt:/data/seed.txt:ro
+      - ./state.json:/data/state.json
+    environment:
+      - PYTHONUNBUFFERED=1
