@@ -1,0 +1,2 @@
+# PKI 2FA Microservice Cron Jobs
+* * * * * root python /app/scripts/log_2fa_cron.py >> /cron/2fa_cron.log 2>&1
