@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # Container Name (Optional, helps with debugging)
+    container_name: pki-2fa-app
+
+    # Port Mapping
+    # HOST:CONTAINER
+    # We map host 8080 to container 8080 as required by the evaluator
+    ports:
+      - "8080:8080"
+
+    # Volume Mounts
+    volumes:
+      # Named volumes for persistence (Required)
+      - seed-data:/data
+      - cron-output:/cron
+      
+      # Mount keys directly so we don't need to rebuild image if keys change (Dev convenience)
+      - ./student_private.pem:/app/student_private.pem:ro
+      - ./student_public.pem:/app/student_public.pem:ro
+      - ./instructor_public.pem:/app/instructor_public.pem:ro
+
+    # Environment Variables
+    environment:
+      - TZ=UTC
+
+    # Restart Policy
+    restart: unless-stopped
+
+# Define the named volumes
+volumes:
+  seed-data:
+  cron-output:

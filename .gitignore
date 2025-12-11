@@ -1,11 +1,16 @@
-
+# Encrypted seed (sensitive - do not commit)
 encrypted_seed.txt
 
+# Proof output (generated later)
 proof_output.txt
 
-__pycache__
+# Python cache
+__pycache__/
+*.pyc
 
+# Environment files
 .env
 
-.venv
-
+# IDE files
+.vscode/
+.idea/
